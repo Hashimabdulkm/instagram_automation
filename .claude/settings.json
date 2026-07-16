@@ -4,7 +4,8 @@
       "Bash(npm run *)",
       "Bash(npm install *)",
       "Bash(Get-Content \"C:\\\\Users\\\\HASHIM~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-Hashim-Habteq-instagram-auto\\\\f99f804a-2a18-4b9a-a9a5-b18a0ff9f4d4\\\\tasks\\\\bgqm3qia7.output\" -Wait -Tail 10)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npx prisma *)"
     ]
   }
 }
