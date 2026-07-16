@@ -232,7 +232,7 @@ function SubcategoryTree({
                 </div>
             )}
 
-            {tree.map(node => renderNode(node))}
+            {tree.map((node: any) => renderNode(node))}
         </div>
     );
 }
@@ -310,16 +310,16 @@ export default function NewProductPage() {
     // Build tree structure from flat subcategories
     const buildTree = (items: any[], parentId: string | null = null): any[] => {
         return items
-            .filter(item => {
+            .filter((item: any) => {
                 // Handle both null and undefined cases for parentId
                 const itemParentId = item.parentId === null ? null : item.parentId;
                 return itemParentId === parentId;
             })
-            .map(item => ({
+            .map((item: any) => ({
                 ...item,
                 children: buildTree(items, item.id)
             }))
-            .sort((a, b) => a.name.localeCompare(b.name));
+            .sort((a: any, b: any) => a.name.localeCompare(b.name));
     };
 
     useEffect(() => {
@@ -483,7 +483,7 @@ export default function NewProductPage() {
                                                 throw new Error(err?.error ? JSON.stringify(err.error) : "Failed to add category");
                                             }
                                             const created = await res.json();
-                                            setCategories((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+                                            setCategories((prev: Array<{ id: string; name: string }>) => [...prev, created].sort((a: any, b: any) => a.name.localeCompare(b.name)));
                                             form.setValue("categoryId", created.id);
                                             setNewCategoryName("");
                                             toast.success("Category added");

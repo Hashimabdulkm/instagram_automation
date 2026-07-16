@@ -508,7 +508,7 @@ export default function AnalyticsSection() {
                     <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
                         {isLoading ? (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {[...Array(4)].map((_, i) => (
+                                {[...Array(4)].map((_: any, i: number) => (
                                     <Skeleton key={i} className="h-20 w-full" />
                                 ))}
                             </div>

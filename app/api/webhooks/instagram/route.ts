@@ -181,7 +181,7 @@ async function handleIncomingTextDM(userId: string, businessId: string, fromId: 
 
   for (const automation of automations) {
     const words = (automation.keywords || []).map((k: any) => k.word.toLowerCase());
-    const matches = words.length === 0 || words.some((w) => text.toLowerCase().includes(w));
+    const matches = words.length === 0 || words.some((w: any) => text.toLowerCase().includes(w));
 
     if (!matches) continue;
 
@@ -246,7 +246,7 @@ async function handleIncomingComment(userId: string, businessId: string, fromId:
 
   for (const automation of automations) {
     const words = (automation.keywords || []).map((k: any) => k.word.toLowerCase());
-    const matches = words.length === 0 || words.some((w) => text.toLowerCase().includes(w));
+    const matches = words.length === 0 || words.some((w: any) => text.toLowerCase().includes(w));
 
     if (!matches) continue;
 

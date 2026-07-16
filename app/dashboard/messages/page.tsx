@@ -82,7 +82,7 @@ export default function MessagesPage() {
             // Extract customer name from the first customer message
             const customerMessage = messagesData.find((msg: Message) => msg.from?.id !== businessAccountId)
             if (customerMessage?.from?.username) {
-              setConversationNames(prev => ({
+              setConversationNames((prev: Record<string, string>) => ({
                 ...prev,
                 [conversation.id]: customerMessage.from.username
               }))
@@ -187,7 +187,7 @@ export default function MessagesPage() {
                               <AvatarFallback>
                                 {userName
                                   .split(" ")
-                                  .map((n) => n[0])
+                                  .map((n: string) => n[0])
                                   .join("")
                                   .toUpperCase()}
                               </AvatarFallback>
@@ -222,7 +222,7 @@ export default function MessagesPage() {
                         <AvatarFallback>
                           {customerName
                             ?.split(" ")
-                            .map((n) => n[0])
+                            .map((n: string) => n[0])
                             .join("")
                             .toUpperCase() || "C"}
                         </AvatarFallback>

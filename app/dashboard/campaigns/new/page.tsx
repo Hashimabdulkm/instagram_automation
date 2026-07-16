@@ -92,7 +92,7 @@ export default function NewCampaignPage() {
   }
 
   function removeKeyword(k: string) {
-    setTriggerKeywords((prev) => prev.filter((x) => x !== k))
+    setTriggerKeywords((prev: string[]) => prev.filter((x: string) => x !== k))
   }
 
   async function fetchMedia(cursor?: string) {
@@ -105,7 +105,7 @@ export default function NewCampaignPage() {
       const data = await res.json()
 
       if (cursor) {
-        setMediaItems(prev => [...prev, ...data.items])
+        setMediaItems((prev: any[]) => [...prev, ...data.items])
       } else {
         setMediaItems(data.items)
       }
@@ -346,9 +346,9 @@ export default function NewCampaignPage() {
                                   className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 ${selectedPostIds.includes(item.id) ? "border-primary" : "border-transparent"
                                     }`}
                                   onClick={() => {
-                                    setSelectedPostIds(prev =>
+                                    setSelectedPostIds((prev: string[]) =>
                                       prev.includes(item.id)
-                                        ? prev.filter(id => id !== item.id)
+                                        ? prev.filter((id: string) => id !== item.id)
                                         : [...prev, item.id]
                                     )
                                   }}

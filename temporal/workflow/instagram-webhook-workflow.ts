@@ -16,7 +16,7 @@ export async function instagramWebhookWorkflow(payload: InstagramWebhook): Promi
   const events = await processWebhookPayload(payload);
 
   // Start a child workflow for each event
-  const childWorkflows = events.map(async (event, index) => {
+  const childWorkflows = events.map(async (event: any, index: number) => {
     try {
       // Execute child workflow and wait for it to complete
       await executeChild("userEventWorkflow", {

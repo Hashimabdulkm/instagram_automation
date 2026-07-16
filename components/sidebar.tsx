@@ -31,7 +31,7 @@ export function DashboardSidebar() {
   const getUserInitials = () => {
     if (session?.user?.name) {
       const names = session.user.name.split(' ')
-      return names.map(name => name.charAt(0)).join('').toUpperCase().slice(0, 2)
+      return names.map((name: string) => name.charAt(0)).join('').toUpperCase().slice(0, 2)
     }
     if (session?.user?.email) {
       return session.user.email.charAt(0).toUpperCase()

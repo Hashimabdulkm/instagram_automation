@@ -34,7 +34,7 @@ export function SocialProofSection() {
               <Card key={index} className="border-0 shadow-lg">
                 <CardContent className="p-6 space-y-4">
                   <div className="flex gap-1">
-                    {[...Array(testimonial.rating)].map((_, i) => (
+                    {[...Array(testimonial.rating)].map((_: any, i: number) => (
                       <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                     ))}
                   </div>

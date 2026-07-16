@@ -52,7 +52,7 @@ export function NotificationModal({ open, onOpenChange }: NotificationModalProps
   }
 
   const markAllAsRead = async () => {
-    const unreadNotifications = notifications.filter(n => !n.read)
+    const unreadNotifications = notifications.filter((n: LeadNotification) => !n.read)
     if (unreadNotifications.length === 0) return
 
     setMarkingAsRead(true)
@@ -61,14 +61,14 @@ export function NotificationModal({ open, onOpenChange }: NotificationModalProps
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          notificationIds: unreadNotifications.map(n => n.id),
+          notificationIds: unreadNotifications.map((n: LeadNotification) => n.id),
           read: true
         })
       })
 
       if (response.ok) {
         setNotifications(prev => 
-          prev.map(n => ({ ...n, read: true }))
+          prev.map((n: LeadNotification) => ({ ...n, read: true }))
         )
       }
     } catch (error) {
@@ -103,7 +103,7 @@ export function NotificationModal({ open, onOpenChange }: NotificationModalProps
     return triggerType === "dm" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
   }
 
-  const unreadCount = notifications.filter(n => !n.read).length
+  const unreadCount = notifications.filter((n: LeadNotification) => !n.read).length
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -142,7 +142,7 @@ export async function GET(request: Request) {
             formatContentPerformanceData([])
 
         // Combine reach and engagement data for the area chart
-        const combinedData = reachData.map((reachItem, index) => {
+        const combinedData = reachData.map((reachItem: any, index: number) => {
             const engagementValue = engagementData[index]?.value || 0
             const reachValue = reachItem.value || 0
 
@@ -222,30 +222,30 @@ export async function GET(request: Request) {
             period: periodDays,
             reach: {
                 data: reachData,
-                total: reachData.reduce((sum, item) => sum + item.value, 0)
+                total: reachData.reduce((sum: number, item: any) => sum + item.value, 0)
             },
             engagement: {
                 data: engagementData,
-                total: engagementData.reduce((sum, item) => sum + item.value, 0)
+                total: engagementData.reduce((sum: number, item: any) => sum + item.value, 0)
             },
             combined: {
                 data: combinedData,
-                reachTotal: reachData.reduce((sum, item) => sum + item.value, 0),
-                engagementTotal: engagementData.reduce((sum, item) => sum + item.value, 0)
+                reachTotal: reachData.reduce((sum: number, item: any) => sum + item.value, 0),
+                engagementTotal: engagementData.reduce((sum: number, item: any) => sum + item.value, 0)
             },
             followerGrowth: {
                 data: followsUnfollowsData,
-                totalFollows: followsUnfollowsData.reduce((sum, item) => sum + (item?.follows || 0), 0),
-                totalUnfollows: followsUnfollowsData.reduce((sum, item) => sum + (item?.unfollows || 0), 0),
-                netGrowth: followsUnfollowsData.reduce((sum, item) => sum + (item?.net || 0), 0)
+                totalFollows: followsUnfollowsData.reduce((sum: number, item: any) => sum + (item?.follows || 0), 0),
+                totalUnfollows: followsUnfollowsData.reduce((sum: number, item: any) => sum + (item?.unfollows || 0), 0),
+                netGrowth: followsUnfollowsData.reduce((sum: number, item: any) => sum + (item?.net || 0), 0)
             },
             contentPerformance: {
                 data: contentPerformanceData,
-                totalLikes: contentPerformanceData.reduce((sum, item) => sum + item.likes, 0),
-                totalComments: contentPerformanceData.reduce((sum, item) => sum + item.comments, 0),
-                totalShares: contentPerformanceData.reduce((sum, item) => sum + item.shares, 0),
-                totalSaves: contentPerformanceData.reduce((sum, item) => sum + item.saves, 0),
-                totalEngagement: contentPerformanceData.reduce((sum, item) => sum + item.total, 0)
+                totalLikes: contentPerformanceData.reduce((sum: number, item: any) => sum + item.likes, 0),
+                totalComments: contentPerformanceData.reduce((sum: number, item: any) => sum + item.comments, 0),
+                totalShares: contentPerformanceData.reduce((sum: number, item: any) => sum + item.shares, 0),
+                totalSaves: contentPerformanceData.reduce((sum: number, item: any) => sum + item.saves, 0),
+                totalEngagement: contentPerformanceData.reduce((sum: number, item: any) => sum + item.total, 0)
             }
         })
 

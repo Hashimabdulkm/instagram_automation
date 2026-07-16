@@ -96,7 +96,7 @@ async function handleMessageEvent(userId: string, businessId: string, event: Pro
   for (const automation of automations) {
     // Check if message matches keywords
     const keywords = (automation.keywords || []).map((k: any) => k.word.toLowerCase());
-    const matches = keywords.length === 0 || keywords.some((w: string) => text.toLowerCase().includes(w));
+    const matches = keywords.length === 0 || keywords.some((w: any) => text.toLowerCase().includes(w));
 
     if (!matches) continue;
 
@@ -157,7 +157,7 @@ async function handleCommentEvent(userId: string, businessId: string, event: Pro
 
     // Check if comment matches keywords
     const keywords = (automation.keywords || []).map((k: any) => k.word.toLowerCase());
-    const matches = keywords.length === 0 || keywords.some((w: string) => text.toLowerCase().includes(w));
+    const matches = keywords.length === 0 || keywords.some((w: any) => text.toLowerCase().includes(w));
 
     if (!matches) continue;
 
