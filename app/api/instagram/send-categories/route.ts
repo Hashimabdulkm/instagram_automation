@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       });
     } else {
       // Create buttons for categories (max 3 buttons per template)
-      const buttons = categories.slice(0, 3).map(category => ({
+      const buttons = categories.slice(0, 3).map((category: any) => ({
         type: "postback" as const,
         title: category.name,
         payload: JSON.stringify({

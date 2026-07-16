@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       });
     } else {
       // Send products as generic template (max 10 elements)
-      const elements = products.slice(0, 10).map(product => ({
+      const elements = products.slice(0, 10).map((product: any) => ({
         title: product.title,
         image_url: product.imageUrl || "https://via.placeholder.com/300x200",
         subtitle: product.description || "",

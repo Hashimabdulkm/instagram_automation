@@ -57,7 +57,7 @@ export async function GET(request: Request) {
             // For time series data, we need to extract from the values array
             const timeSeriesData = insightsData.flatMap(item => {
                 if (item.values && item.values.length > 0) {
-                    return item.values.map(value => ({
+                    return item.values.map((value: any) => ({
                         date: new Date(value.end_time).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric'
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
             })
 
             // For total value data, we need to handle differently
-            const totalValueData = insightsData.map(item => ({
+            const totalValueData = insightsData.map((item: any) => ({
                 date: new Date().toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric'
@@ -158,7 +158,7 @@ export async function GET(request: Request) {
             followsUnfollowsInsights.data.flatMap(item => {
                 // Handle time series data
                 if (item.values) {
-                    return item.values.map(value => {
+                    return item.values.map((value: any) => {
                         const breakdown = (value as any).breakdowns?.[0]
                         if (!breakdown) return null
 
