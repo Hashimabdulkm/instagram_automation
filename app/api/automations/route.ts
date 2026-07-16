@@ -109,7 +109,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json(
-      autos.map((a) => ({ id: a.id, name: a.name, status: a.active ? "active" : "draft" }))
+      autos.map((a: { id: string; name: string; active: boolean }) => ({ id: a.id, name: a.name, status: a.active ? "active" : "draft" }))
     );
   } catch (error) {
     console.error("GET /api/automations error", error);
