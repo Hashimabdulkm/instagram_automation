@@ -1,0 +1,84 @@
+services:
+  # PostgreSQL Database for Temporal
+  postgres:
+    image: postgres:15-alpine
+    container_name: instagram-auto-postgres
+    environment:
+      POSTGRES_DB: temporal
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - caddy_network
+
+  # Temporal Server
+  temporal:
+    image: temporalio/auto-setup:latest
+    container_name: instagram-auto-temporal
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PWD=postgres
+      - POSTGRES_SEEDS=postgres
+    ports:
+      - "7233:7233"
+    volumes:
+      - temporal_data:/etc/temporal/dynamicconfig
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 7233 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    networks:
+      - caddy_network
+
+  app:
+    image: ghcr.io/farhan294sha/instagram-auto:latest
+    container_name: instagram-auto-app
+    # Port NOT exposed - access through Caddy reverse proxy only
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_NAMESPACE=default
+    depends_on:
+      - temporal
+    restart: unless-stopped
+    networks:
+      - caddy_network
+
+  # Temporal Worker
+  temporal-worker:
+    image: ghcr.io/farhan294sha/instagram-auto:latest 
+    container_name: instagram-auto-temporal-worker
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_NAMESPACE=default
+    depends_on:
+      - temporal
+    networks:
+      - caddy_network
+    command: ["node", "dist/temporal/workers/main-worker.js"]
+
+volumes:
+  postgres_data:
+  temporal_data:
+
+networks:
+  caddy_network:
+    external: true

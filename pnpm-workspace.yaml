@@ -1,0 +1,6 @@
+ignoredBuiltDependencies:
+  - '@/lib/prisma'
+  - '@prisma/engines'
+  - prisma
+onlyBuiltDependencies:
+  - '@tailwindcss/oxide'

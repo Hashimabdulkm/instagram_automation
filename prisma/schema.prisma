@@ -1,0 +1,202 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  credentialID      String              @unique
+  email             String              @unique
+  firstName         String
+  lastName          String
+  image             String
+  additionalEmail   String?
+  phone             String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  automations       Automations[]
+  integrations      Integrations[]
+  leadNotifications LeadNotifications[]
+  subscription      Subscription?
+  categories        Category[]
+  subcategories     Subcategory[]
+  products          Product[]
+}
+
+model Subscription {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?      @unique @db.Uuid
+  plan      SUBSCRIPTION @default(FREE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  user      User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Automations {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String              @default("Untitled")
+  active            Boolean             @default(true)
+  userId            String?             @db.Uuid
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  user              User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dms               Dms[]
+  keywords          Keywords[]
+  leadNotifications LeadNotifications[]
+  listener          Listener[]
+  postIds           String[]
+  trigger           Trigger[]
+}
+
+model Integrations {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        INTEGRATIONS @default(INSTAGRAM)
+  userId      String?      @db.Uuid
+  token       String       @unique
+  expiresAt   DateTime?
+  instagramId String       @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  user        User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Trigger {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type         String
+  automationId String?      @db.Uuid
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  automation   Automations? @relation(fields: [automationId], references: [id], onDelete: Cascade)
+}
+
+model Listener {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type         String
+  automationId String?      @db.Uuid
+  listener     LISTENERS    @default(MESSAGE)
+  prompt       String
+  commendReply String?
+  dmContent    Int          @default(0)
+  commentCount Int          @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  commentReply String?
+  automation   Automations? @relation(fields: [automationId], references: [id], onDelete: Cascade)
+}
+
+model Dms {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  automationId String?      @db.Uuid
+  senderId     String?
+  reciever     String?
+  message      String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  automation   Automations? @relation(fields: [automationId], references: [id], onDelete: Cascade)
+}
+
+
+model Keywords {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  word         String
+  automationId String?      @db.Uuid
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  automation   Automations? @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  @@unique([automationId, word])
+}
+
+model LeadNotifications {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String?      @db.Uuid
+  automationId String?      @db.Uuid
+  leadName     String?
+  leadId       String
+  triggerType  String
+  message      String?
+  campaignName String
+  triggeredAt  DateTime     @default(now())
+  read         Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  automation   Automations? @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Catalog: categories, subcategories, and products
+model Category {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String        @unique
+  userId        String        @db.Uuid
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  subcategories Subcategory[]
+  products      Product[]
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+}
+
+model Subcategory {
+  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  categoryId String        @db.Uuid
+  parentId   String?       @db.Uuid
+  userId     String        @db.Uuid
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  category   Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  products   Product[]
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent     Subcategory?  @relation("SubcategoryToSubcategory", fields: [parentId], references: [id], onDelete: Cascade)
+  children   Subcategory[] @relation("SubcategoryToSubcategory")
+
+  @@unique([categoryId, parentId, name])
+  @@index([parentId])
+}
+
+model Product {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title         String
+  description   String?
+  imageUrl      String?
+  buttons       Json?
+  userId        String       @db.Uuid
+  categoryId    String?      @db.Uuid
+  subcategoryId String?      @db.Uuid
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  active        Boolean      @default(true)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category      Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([subcategoryId])
+}
+
+enum SUBSCRIPTION {
+  FREE
+  PRO
+}
+
+enum INTEGRATIONS {
+  INSTAGRAM
+}
+
+enum LISTENERS {
+  MESSAGE
+  SMARTAI
+}
+
+enum MEDIATYPE {
+  IMAGE
+  VIDEO
+  CAROUSEL_ALBUM
+}
