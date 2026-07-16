@@ -108,7 +108,7 @@ export async function POST(request: Request) {
         }
       } else {
         // Show subcategories as buttons
-        const buttons = subcategories.slice(0, 3).map(sub => ({
+        const buttons = subcategories.slice(0, 3).map((sub: any) => ({
           type: "postback" as const,
           title: sub.name,
           payload: JSON.stringify({ action: "select_subcategory", id: sub.id, userId })
@@ -199,7 +199,7 @@ export async function POST(request: Request) {
         }
       } else {
         // Show sub-subcategories as buttons
-        const buttons = subcategories.slice(0, 3).map(sub => ({
+        const buttons = subcategories.slice(0, 3).map((sub: any) => ({
           type: "postback" as const,
           title: sub.name,
           payload: JSON.stringify({ action: "select_subcategory", id: sub.id, userId })
@@ -234,7 +234,7 @@ export async function POST(request: Request) {
           buttons: []
         });
       } else {
-        const buttons = categories.slice(0, 3).map(cat => ({
+        const buttons = categories.slice(0, 3).map((cat: any) => ({
           type: "postback" as const,
           title: cat.name,
           payload: JSON.stringify({ action: "select_category", id: cat.id, userId })
