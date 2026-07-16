@@ -44,7 +44,7 @@ export async function GET(request: Request) {
 
         // 4. Fetch details for each media item
         const mediaDetails = await Promise.all(
-            mediaResponse.data.map(async (mediaItem) => {
+            mediaResponse.data.map(async (mediaItem: any) => {
                 try {
                     const details = await instagramService.getMediaDetails(
                         accessToken,

@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 
     // Try to update usernames for notifications that don't have them
     const notificationsWithUsernames = await Promise.all(
-      notifications.map(async (notification) => {
+      notifications.map(async (notification: any) => {
         // If leadName is the same as leadId, try to fetch the username
         if (notification.leadName === notification.leadId) {
           try {
