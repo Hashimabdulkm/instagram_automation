@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { client } from "@/lib/prisma";
 import { sendInstagramDM, replyToComment, getInstagramUserInfo } from "../../../../lib/instagram";
 import { decryptString, verifyInstagramSignature } from "@/lib/crypto";
-import { MessageEvent, parseInstagramWebhook, processWebhook, safeParseInstagramWebhook } from "@/lib/instagram-webhookschema";
-import { startWebhookWorkflow } from "@/lib/temporal-client";
+import { MessageEvent, parseInstagramWebhook, processWebhook } from "@/lib/instagram-webhookschema";
 
 // GET: Webhook verification (Meta challenge)
 export async function GET(request: Request) {
@@ -67,15 +66,47 @@ export async function POST(request: Request) {
     // Parse and validate webhook - if invalid, still return 200
     try {
       const webhook = parseInstagramWebhook(payload);
+      const events = processWebhook(webhook);
 
-      // Start Temporal workflow to process the webhook (non-blocking)
-      try {
-        const workflowId = await startWebhookWorkflow(webhook);
-        console.log(`[IG Webhook][POST] Started workflow ${workflowId} to process webhook`);
-      } catch (workflowError) {
-        // Log workflow start error but still acknowledge webhook receipt
-        console.error("[IG Webhook][POST] Failed to start workflow:", workflowError);
-      }
+      await Promise.all(
+        events.map(async (event) => {
+          try {
+            const businessId = event.accountId;
+            const integration = await client.integrations.findFirst({ where: { instagramId: businessId } });
+            if (!integration?.userId) {
+              console.warn(`[IG Webhook][POST] No integration for account ${businessId}`);
+              return;
+            }
+            const userId = integration.userId;
+
+            if (event.type === "message") {
+              const msg = event.data;
+              if (msg.message?.is_echo || msg.message?.is_self) return;
+              const text: string | undefined = msg.message?.text;
+              const fromId: string | undefined = msg.sender?.id;
+              if (text && fromId) {
+                await handleIncomingTextDM(userId, businessId, fromId, text);
+              }
+            } else if (event.type === "comment") {
+              const change = event.data;
+              const text: string | undefined = change.value?.text;
+              const fromId: string | undefined = change.value?.from?.id;
+              const commentId: string | undefined = change.value?.id;
+              if (text && fromId) {
+                await handleIncomingComment(userId, businessId, fromId, text, commentId);
+              }
+            } else if (event.type === "postback") {
+              const pb = event.data;
+              const fromId: string | undefined = pb.sender?.id;
+              if (fromId && pb.postback) {
+                await handleIncomingPostback(userId, businessId, fromId, pb.postback);
+              }
+            }
+          } catch (handlerError) {
+            console.error(`[IG Webhook][POST] Handler error for ${event.type}:`, handlerError);
+          }
+        })
+      );
     } catch (validationError) {
       // Log validation error but still acknowledge webhook receipt
       console.error("[IG Webhook][POST] Webhook validation failed:", validationError);
