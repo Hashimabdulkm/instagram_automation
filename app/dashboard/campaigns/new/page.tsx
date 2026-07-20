@@ -126,30 +126,7 @@ export default function NewCampaignPage() {
   function save(status: "draft" | "active") {
     const userId = (session?.user as any)?.id as string | undefined
     if (!userId) {
-      // fallback to localStorage if session missing
-      const id = crypto.randomUUID()
-      const draft: DraftCampaign = {
-        id,
-        name: name.trim(),
-        triggerType,
-        triggerKeywords,
-        responseType,
-        predefinedMessage: responseType === "predefined" ? predefinedMessage.trim() : undefined,
-        aiModel: responseType === "ai" ? aiModel : undefined,
-        aiPrompt: responseType === "ai" ? aiPrompt.trim() : undefined,
-        optionalPostText: optionalPostText.trim() || undefined,
-        commentReplyText: triggerType === "comment" ? commentReplyText.trim() : undefined,
-        postSelectionMode,
-        selectedPostIds: postSelectionMode === "specific" ? selectedPostIds : [],
-        status,
-        createdAt: Date.now(),
-      }
-      const key = "campaigns"
-      const existingRaw = typeof window !== "undefined" ? window.localStorage.getItem(key) : null
-      const existing: DraftCampaign[] = existingRaw ? JSON.parse(existingRaw) : []
-      const next = [draft, ...existing]
-      window.localStorage.setItem(key, JSON.stringify(next))
-      router.push("/dashboard/campaigns")
+      alert("Session expired or not loaded. Please sign out and sign back in.")
       return
     }
 
