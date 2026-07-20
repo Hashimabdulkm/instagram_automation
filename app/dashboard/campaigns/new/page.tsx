@@ -46,7 +46,7 @@ type DraftCampaign = {
 
 export default function NewCampaignPage() {
   const router = useRouter()
-  const { data: session } = useSession()
+  const { data: session, status: sessionStatus } = useSession()
   const createCampaignMutation = useCreateCampaign()
 
   const [name, setName] = useState("")
@@ -124,9 +124,10 @@ export default function NewCampaignPage() {
   }, [triggerType])
 
   function save(status: "draft" | "active") {
+    if (sessionStatus === "loading") return
     const userId = (session?.user as any)?.id as string | undefined
     if (!userId) {
-      alert("Session expired or not loaded. Please sign out and sign back in.")
+      alert("Session expired. Please sign out and sign back in.")
       return
     }
 
