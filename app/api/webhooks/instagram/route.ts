@@ -65,8 +65,10 @@ export async function POST(request: Request) {
 
     // Parse and validate webhook - if invalid, still return 200
     try {
+      console.log("[IG Webhook][POST] Raw payload:", JSON.stringify(payload));
       const webhook = parseInstagramWebhook(payload);
       const events = processWebhook(webhook);
+      console.log(`[IG Webhook][POST] Parsed ${events.length} events:`, events.map(e => ({ type: e.type, accountId: e.accountId })));
 
       await Promise.all(
         events.map(async (event) => {
@@ -78,12 +80,17 @@ export async function POST(request: Request) {
               return;
             }
             const userId = integration.userId;
+            console.log(`[IG Webhook][POST] Dispatching ${event.type} for user ${userId}, business ${businessId}`);
 
             if (event.type === "message") {
               const msg = event.data;
-              if (msg.message?.is_echo || msg.message?.is_self) return;
+              if (msg.message?.is_echo || msg.message?.is_self) {
+                console.log("[IG Webhook][POST] Skipping echo/self message");
+                return;
+              }
               const text: string | undefined = msg.message?.text;
               const fromId: string | undefined = msg.sender?.id;
+              console.log(`[IG Webhook][POST] Message from ${fromId}: "${text}"`);
               if (text && fromId) {
                 await handleIncomingTextDM(userId, businessId, fromId, text);
               }
@@ -101,6 +108,8 @@ export async function POST(request: Request) {
               if (fromId && pb.postback) {
                 await handleIncomingPostback(userId, businessId, fromId, pb.postback);
               }
+            } else {
+              console.log(`[IG Webhook][POST] Ignoring event type: ${event.type}`);
             }
           } catch (handlerError) {
             console.error(`[IG Webhook][POST] Handler error for ${event.type}:`, handlerError);
