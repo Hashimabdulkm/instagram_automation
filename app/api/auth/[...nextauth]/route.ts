@@ -80,11 +80,11 @@ export const authOptions: AuthOptions = {
         (token as any).refreshToken = (account as any).refresh_token;
 
         try {
-          const instagramId = String(account.providerAccountId)
-          const dbUser = await client.user.findFirst({ where: { credentialID: instagramId } })
+          const instagramId = String(account.providerAccountId);
+          const dbUser = await client.user.findFirst({ where: { credentialID: instagramId } });
           if (dbUser) {
-            (token as any).userId = dbUser.id
-            (token as any).sub = dbUser.id
+            (token as any).userId = dbUser.id;
+            (token as any).sub = dbUser.id;
           }
         } catch (e) {
           console.error("Error looking up user in jwt callback:", e);
@@ -94,10 +94,10 @@ export const authOptions: AuthOptions = {
       // Recovery: if userId is missing on subsequent requests, try to recover from sub
       if (!(token as any).userId && token.sub) {
         try {
-          const dbUser = await client.user.findFirst({ where: { credentialID: token.sub } })
+          const dbUser = await client.user.findFirst({ where: { credentialID: token.sub } });
           if (dbUser) {
-            (token as any).userId = dbUser.id
-            (token as any).sub = dbUser.id
+            (token as any).userId = dbUser.id;
+            (token as any).sub = dbUser.id;
           }
         } catch (e) {
           console.error("Error recovering userId in jwt callback:", e);
