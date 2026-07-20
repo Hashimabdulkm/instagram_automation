@@ -1,6 +1,10 @@
-ignoredBuiltDependencies:
-  - '@/lib/prisma'
-  - '@prisma/engines'
-  - prisma
-onlyBuiltDependencies:
-  - '@tailwindcss/oxide'
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  '@swc/core': true
+  '@tailwindcss/oxide': true
+  '@temporalio/core-bridge': true
+  esbuild: true
+  prisma: true
+  protobufjs: true
+  sharp: true
