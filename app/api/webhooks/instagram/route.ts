@@ -22,7 +22,9 @@ export async function GET(request: Request) {
 // POST: Receive webhook events
 // IMPORTANT: Always returns 200 status to prevent Instagram from disabling the webhook
 export async function POST(request: Request) {
+  console.log("[IG Webhook][POST] Received webhook request");
   try {
+
     // Verify client certificate CN (mTLS verification)
     const clientCertSubject = request.headers.get("X-Client-Cert-Subject");
     if (clientCertSubject && !clientCertSubject.includes("CN=client.webhooks.fbclientcerts.com")) {
@@ -231,35 +233,10 @@ async function handleIncomingTextDM(userId: string, businessId: string, fromId: 
     if (listener.listener === "MESSAGE") {
       const reply = listener.commendReply || "";
       if (reply && fromId) {
-        // Create job first
-        const job = await (client as any).replyJob.create({
-          data: {
-            userId,
-            automationId: automation.id,
-            businessId,
-            toUserId: fromId,
-            triggerType: "dm",
-            originalText: text,
-            message: reply,
-            status: "pending",
-          },
-        })
-
-        // Try immediate send once; on failure keep job for retry
         try {
           await sendInstagramDM({ businessId, toUserId: fromId, text: reply });
-          await (client as any).replyJob.update({ where: { id: job.id }, data: { status: "sent", attempts: { increment: 1 } } });
           await createLeadNotification(userId, automation.id, fromId, "dm", text, automation.name, businessId);
         } catch (error: any) {
-          await (client as any).replyJob.update({
-            where: { id: job.id },
-            data: {
-              status: "pending",
-              attempts: { increment: 1 },
-              lastError: String(error?.message || error || "send failed"),
-              nextAttemptAt: new Date(Date.now() + 60 * 1000), // retry in 1 min
-            },
-          })
           console.error("[IG DM] Failed to send DM:", error);
         }
       }
@@ -300,67 +277,19 @@ async function handleIncomingComment(userId: string, businessId: string, fromId:
       // Get the integration to get the access token
       const integration = await client.integrations.findFirst({ where: { instagramId: businessId } });
 
-      // Create jobs for comment reply and DM
-      // Comment reply job (best-effort, uses page access token flow)
       if (commentReply && commentId && integration?.token) {
-        const job = await (client as any).replyJob.create({
-          data: {
-            userId,
-            automationId: automation.id,
-            businessId,
-            toUserId: fromId || "",
-            triggerType: "comment",
-            commentId: commentId,
-            originalText: text,
-            message: commentReply,
-            status: "pending",
-          },
-        })
         try {
           const accessToken = await decryptString(integration.token);
           await replyToComment(commentId, commentReply, accessToken);
-          await (client as any).replyJob.update({ where: { id: job.id }, data: { status: "sent", attempts: { increment: 1 } } });
         } catch (error: any) {
-          await (client as any).replyJob.update({
-            where: { id: job.id },
-            data: {
-              status: "pending",
-              attempts: { increment: 1 },
-              lastError: String(error?.message || error || "comment send failed"),
-              nextAttemptAt: new Date(Date.now() + 60 * 1000),
-            },
-          })
           console.error("[IG Comment] Comment reply failed:", error);
         }
       }
 
-      // DM job
       if (dmReply && fromId) {
-        const job = await (client as any).replyJob.create({
-          data: {
-            userId,
-            automationId: automation.id,
-            businessId,
-            toUserId: fromId,
-            triggerType: "dm",
-            originalText: text,
-            message: dmReply,
-            status: "pending",
-          },
-        })
         try {
           await sendInstagramDM({ businessId, toUserId: fromId, text: dmReply });
-          await (client as any).replyJob.update({ where: { id: job.id }, data: { status: "sent", attempts: { increment: 1 } } });
         } catch (error: any) {
-          await (client as any).replyJob.update({
-            where: { id: job.id },
-            data: {
-              status: "pending",
-              attempts: { increment: 1 },
-              lastError: String(error?.message || error || "dm send failed"),
-              nextAttemptAt: new Date(Date.now() + 60 * 1000),
-            },
-          })
           console.error("[IG Comment] DM failed after comment:", error);
         }
       }

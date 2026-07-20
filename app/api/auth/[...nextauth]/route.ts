@@ -223,10 +223,12 @@ export const authOptions: AuthOptions = {
             if (dbUser) {
               (session.user as any).additionalEmail = dbUser.additionalEmail;
               (session.user as any).id = userId;
-              // Update session with user's image from database
               if (dbUser.image) {
                 session.user.image = dbUser.image;
               }
+            } else {
+              // Fallback: still expose the userId even if db fetch failed
+              (session.user as any).id = userId;
             }
           }
         } catch (error) {

@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
 
-    if (!userId) {
+    if (!userId || userId === "undefined") {
       return NextResponse.json({ error: "userId required" }, { status: 400 });
     }
 
