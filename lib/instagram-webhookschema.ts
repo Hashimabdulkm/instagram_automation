@@ -137,8 +137,8 @@ export type ReferralEvent = z.infer<typeof ReferralEventSchema>;
 
 // Message Seen Event
 const MessageSeenEventSchema = z.object({
-  sender: z.object({ id: z.string() }),
-  recipient: z.object({ id: z.string() }),
+  sender: z.object({ id: z.string() }).optional(),
+  recipient: z.object({ id: z.string() }).optional(),
   timestamp: z.number(),
   read: z.object({
     mid: z.string().describe('Message ID that was read'),
@@ -161,7 +161,7 @@ const MessageEditEventSchema = z.object({
 
 export type MessageEditEvent = z.infer<typeof MessageEditEventSchema>;
 
-// Union of all messaging events
+// Union of all messaging events (fallback catches unknown shapes like partial read receipts)
 const MessagingEventSchema = z.union([
   MessageEventSchema,
   ReactionEventSchema,
@@ -169,6 +169,7 @@ const MessagingEventSchema = z.union([
   ReferralEventSchema,
   MessageSeenEventSchema,
   MessageEditEventSchema,
+  z.record(z.any()),
 ]);
 
 export type MessagingEvent = z.infer<typeof MessagingEventSchema>;
