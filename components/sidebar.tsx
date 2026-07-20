@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
-import { Home, BarChart3, Settings, Zap, ChevronLeft, ChevronRight, Boxes } from "lucide-react"
+import { Home, BarChart3, Settings, Zap, ChevronLeft, ChevronRight, Boxes, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -16,8 +16,8 @@ import Image from "next/image"
 const navigation = [
   { name: "Home", href: "/dashboard", icon: Home },
   { name: "Campaigns", href: "/dashboard/campaigns", icon: Zap },
-  // { name: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
-  // { name: "Products", href: "/dashboard/products", icon: Boxes },
+  { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
+  { name: "Products", href: "/dashboard/products", icon: Boxes },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ]
 
