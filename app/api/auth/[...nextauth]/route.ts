@@ -81,7 +81,24 @@ export const authOptions: AuthOptions = {
 
         try {
           const instagramId = String(account.providerAccountId);
-          const dbUser = await client.user.findFirst({ where: { credentialID: instagramId } });
+          const accessToken = (account as any).access_token as string | undefined;
+
+          // Try by credentialID first
+          let dbUser = await client.user.findFirst({ where: { credentialID: instagramId } });
+
+          // Fallback: get real Instagram ID from API and look up via integration
+          if (!dbUser && accessToken) {
+            const me = await getInstagramMe(accessToken);
+            const realInstagramId = me?.user_id;
+            if (realInstagramId) {
+              (token as any).instagramId = realInstagramId;
+              const integration = await client.integrations.findFirst({ where: { instagramId: realInstagramId } });
+              if (integration?.userId) {
+                dbUser = await client.user.findUnique({ where: { id: integration.userId } });
+              }
+            }
+          }
+
           if (dbUser) {
             (token as any).userId = dbUser.id;
             (token as any).sub = dbUser.id;
@@ -91,16 +108,15 @@ export const authOptions: AuthOptions = {
         }
       }
 
-      // Recovery: if userId is missing on subsequent requests, try to recover from sub
-      if (!(token as any).userId && token.sub) {
+      // Recovery on subsequent requests: try via instagramId → integration → user
+      if (!(token as any).userId && (token as any).instagramId) {
         try {
-          const dbUser = await client.user.findFirst({ where: { credentialID: token.sub } });
-          if (dbUser) {
-            (token as any).userId = dbUser.id;
-            (token as any).sub = dbUser.id;
+          const integration = await client.integrations.findFirst({ where: { instagramId: (token as any).instagramId } });
+          if (integration?.userId) {
+            (token as any).userId = integration.userId;
           }
         } catch (e) {
-          console.error("Error recovering userId in jwt callback:", e);
+          console.error("Error recovering userId via integration:", e);
         }
       }
 
@@ -218,36 +234,43 @@ export const authOptions: AuthOptions = {
     },
     async session({ session, token }: { session: Session; token: JWT }) {
       if (session.user) {
-        // Add additional contact information to session
         try {
-          // Only use userId from token (which is the database UUID)
-          const userId = (token as any).userId;
-          if (userId) {
-            const dbUser = await client.user.findUnique({
-              where: { id: userId },
-              select: {
-                additionalEmail: true,
-                phone: true,
-                image: true,
-              },
-            });
+          let userId = (token as any).userId as string | undefined;
+          console.log("[Session] token.userId:", userId, "token.sub:", token.sub);
 
-            if (dbUser) {
-              (session.user as any).additionalEmail = dbUser.additionalEmail;
-              (session.user as any).id = userId;
-              if (dbUser.image) {
-                session.user.image = dbUser.image;
+          // Recovery: try token.sub as credentialID
+          if (!userId && token.sub) {
+            const found = await client.user.findFirst({ where: { credentialID: token.sub } });
+            console.log("[Session] recovery lookup by sub:", token.sub, "found:", found?.id);
+            if (found) userId = found.id;
+          }
+
+          // Recovery: try via integration using stored instagramId
+          if (!userId && (token as any).instagramId) {
+            const integration = await client.integrations.findFirst({ where: { instagramId: (token as any).instagramId } });
+            console.log("[Session] recovery via instagramId:", (token as any).instagramId, "userId:", integration?.userId);
+            if (integration?.userId) userId = integration.userId;
+          }
+
+          if (userId) {
+            (session.user as any).id = userId;
+            try {
+              const dbUser = await client.user.findUnique({
+                where: { id: userId },
+                select: { additionalEmail: true, phone: true, image: true },
+              });
+              if (dbUser) {
+                (session.user as any).additionalEmail = dbUser.additionalEmail;
+                if (dbUser.image) session.user.image = dbUser.image;
               }
-            } else {
-              // Fallback: still expose the userId even if db fetch failed
-              (session.user as any).id = userId;
+            } catch {
+              // non-critical, id is already set
             }
           }
         } catch (error) {
-          console.error("Error fetching user contact info for session:", error);
+          console.error("Error in session callback:", error);
         }
       }
-      // Do not expose provider access tokens to the client
       return session;
     },
   },
