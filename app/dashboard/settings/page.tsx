@@ -10,19 +10,68 @@ import { Switch } from "@/components/ui/switch"
 import { useSession } from "next-auth/react"
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Mail, User, Image as ImageIcon, Phone } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Calendar, Mail, User, Image as ImageIcon, Phone, Instagram, Plus, Trash2, Check } from "lucide-react"
 import { updateContactInfo } from "@/actions/user/update-contact-info"
 import { getContactInfo } from "@/actions/user/get-contact-info"
 import { toast } from "sonner"
+import { useSearchParams, useRouter } from "next/navigation"
+
+type Integration = {
+  id: string
+  instagramId: string
+  accountName: string | null
+  username: string | null
+  profilePicture: string | null
+  expiresAt: string | null
+}
 
 export default function SettingsPage() {
   const { data: session } = useSession()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [formData, setFormData] = useState({
     additionalEmail: "",
     phone: "",
   })
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [accounts, setAccounts] = useState<Integration[]>([])
+  const [activeIntegrationId, setActiveIntegrationId] = useState<string | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
+  const [switchingId, setSwitchingId] = useState<string | null>(null)
+
+  // Show connect result toasts from URL params
+  useEffect(() => {
+    const connect = searchParams.get("connect")
+    const reason = searchParams.get("reason")
+    if (connect === "success") {
+      toast.success("Instagram account connected successfully!")
+      fetchAccounts()
+    } else if (connect === "error") {
+      const msg = reason === "already-linked"
+        ? "This Instagram account is already linked to another user."
+        : `Failed to connect account: ${reason || "unknown error"}`
+      toast.error(msg)
+    }
+    if (connect) {
+      // Clean the URL params without reload
+      const url = new URL(window.location.href)
+      url.searchParams.delete("connect")
+      url.searchParams.delete("reason")
+      router.replace(url.pathname + url.search, { scroll: false })
+    }
+  }, [searchParams])
+
+  const fetchAccounts = () => {
+    fetch("/api/integrations")
+      .then((r) => r.json())
+      .then((data) => {
+        setAccounts(data.integrations || [])
+        setActiveIntegrationId(data.activeIntegrationId)
+      })
+      .catch(() => {})
+  }
 
   // Initialize form data when session loads
   useEffect(() => {
@@ -41,7 +90,43 @@ export default function SettingsPage() {
       setLoading(false)
     }
     loadContactInfo()
+    fetchAccounts()
   }, [session])
+
+  const switchAccount = async (integrationId: string) => {
+    setSwitchingId(integrationId)
+    try {
+      const res = await fetch("/api/instagram/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ integrationId }),
+      })
+      if (res.ok) {
+        setActiveIntegrationId(integrationId)
+        toast.success("Switched active account")
+        router.refresh()
+      }
+    } finally {
+      setSwitchingId(null)
+    }
+  }
+
+  const removeAccount = async (integrationId: string) => {
+    if (!confirm("Remove this Instagram account? This cannot be undone.")) return
+    setRemovingId(integrationId)
+    try {
+      const res = await fetch(`/api/integrations?id=${integrationId}`, { method: "DELETE" })
+      if (res.ok) {
+        toast.success("Account removed")
+        fetchAccounts()
+        router.refresh()
+      } else {
+        toast.error("Failed to remove account")
+      }
+    } finally {
+      setRemovingId(null)
+    }
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -76,6 +161,78 @@ export default function SettingsPage() {
             </div>
 
             <div className="grid gap-6">
+              {/* Instagram Accounts */}
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Instagram className="w-5 h-5" />
+                    Instagram Accounts
+                  </CardTitle>
+                  <CardDescription>Manage the Instagram accounts connected to your dashboard</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {accounts.length === 0 && (
+                    <p className="text-sm text-muted-foreground py-2">No Instagram accounts connected yet.</p>
+                  )}
+                  {accounts.map((account) => {
+                    const isActive = account.id === activeIntegrationId
+                    const displayName = account.username ? `@${account.username}` : account.accountName || account.instagramId
+                    const initials = (account.accountName || account.username || "IG").slice(0, 2).toUpperCase()
+                    const isRemoving = removingId === account.id
+                    const isSwitching = switchingId === account.id
+                    return (
+                      <div key={account.id} className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+                        <Avatar className="w-10 h-10">
+                          <AvatarImage src={account.profilePicture || undefined} />
+                          <AvatarFallback className="bg-gradient-to-br from-pink-500 to-purple-600 text-white text-sm">
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{displayName}</p>
+                          {account.accountName && account.username && (
+                            <p className="text-xs text-muted-foreground truncate">{account.accountName}</p>
+                          )}
+                          {isActive && (
+                            <Badge variant="secondary" className="mt-1 text-xs">Active</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {!isActive && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => switchAccount(account.id)}
+                              disabled={isSwitching}
+                              className="text-xs"
+                            >
+                              {isSwitching ? "Switching…" : "Set Active"}
+                            </Button>
+                          )}
+                          {isActive && <Check className="w-4 h-4 text-primary" />}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeAccount(account.id)}
+                            disabled={isRemoving}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  <Button asChild variant="outline" className="w-full mt-2 gap-2">
+                    <a href="/api/instagram/connect">
+                      <Plus className="w-4 h-4" />
+                      Add Instagram Account
+                    </a>
+                  </Button>
+                </CardContent>
+              </Card>
+
               {/* User Profile Overview */}
               <Card className="border-0 shadow-sm">
                 <CardHeader>

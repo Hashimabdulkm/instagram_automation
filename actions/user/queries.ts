@@ -16,6 +16,10 @@ export const findUser = async (id: string) => {
                     token: true,
                     expiresAt: true,
                     name: true,
+                    instagramId: true,
+                    accountName: true,
+                    username: true,
+                    profilePicture: true,
                 },
             },
         },
@@ -32,7 +36,6 @@ export const createUser = async (
     return await client.user.create({
         data: {
             id,
-            credentialID: id,
             email,
             firstName,
             lastName,

@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 import Image from "next/image"
+import { AccountSwitcher } from "@/components/account-switcher"
 
 
 
@@ -106,7 +107,9 @@ export function DashboardSidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-sidebar-border">
+      <div className="p-4 border-t border-sidebar-border space-y-2">
+        <AccountSwitcher collapsed={collapsed} />
+
         <div
           className={cn(
             "flex items-center space-x-3 p-2 rounded-lg hover:bg-sidebar-accent transition-colors cursor-pointer",

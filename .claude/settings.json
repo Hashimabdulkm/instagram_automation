@@ -7,7 +7,22 @@
       "Bash(npx tsc *)",
       "Bash(npx prisma *)",
       "PowerShell(npm install -g pnpm)",
-      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Hashim Habteq\\\\instagram-auto\" -Recurse -Directory | Select-Object -First 20 | ForEach-Object { $_.FullName })"
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Hashim Habteq\\\\instagram-auto\" -Recurse -Directory | Select-Object -First 20 | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Hashim Habteq\\\\instagram-auto\" -Force | Select-Object Name, @{Name=\"Type\";Expression={if\\($_.PSIsContainer\\){\"Directory\"}else{\"File\"}}} | Format-Table -AutoSize)",
+      "Bash(pnpm prisma *)",
+      "Bash(pnpm tsc *)",
+      "Bash(ls \"c:\\\\Users\\\\Hashim Habteq\\\\.claude\\\\projects\\\\c--Users-Hashim-Habteq-instagram-auto\\\\memory\\\\\" 2>&1)",
+      "Read(//c/Users/Hashim Habteq/.claude/projects/c--Users-Hashim-Habteq-instagram-auto/**)",
+      "Bash(dir \"C:\\\\Users\\\\Hashim Habteq\\\\.claude\\\\projects\\\\c--Users-Hashim-Habteq-instagram-auto\\\\memory\")",
+      "Bash(pnpm add *)",
+      "Bash(Get-Process -Name \"node\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object Id, ProcessName, MainWindowTitle)",
+      "Bash(Format-Table)",
+      "PowerShell(Get-Process -Name \"node\" -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Name \"node\" -Force -ErrorAction SilentlyContinue)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Hashim Habteq\\.claude\\projects\\c--Users-Hashim-Habteq-instagram-auto"
     ]
   }
 }

@@ -8,23 +8,25 @@ datasource db {
 }
 
 model User {
-  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  credentialID      String              @unique
-  email             String              @unique
-  firstName         String
-  lastName          String
-  image             String
-  additionalEmail   String?
-  phone             String?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  automations       Automations[]
-  integrations      Integrations[]
-  leadNotifications LeadNotifications[]
-  subscription      Subscription?
-  categories        Category[]
-  subcategories     Subcategory[]
-  products          Product[]
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  credentialID        String?             @unique
+  email               String              @unique
+  password            String?
+  firstName           String
+  lastName            String
+  image               String
+  additionalEmail     String?
+  phone               String?
+  activeIntegrationId String?             @db.Uuid
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  automations         Automations[]
+  integrations        Integrations[]
+  leadNotifications   LeadNotifications[]
+  subscription        Subscription?
+  categories          Category[]
+  subcategories       Subcategory[]
+  products            Product[]
 }
 
 model Subscription {
@@ -53,15 +55,18 @@ model Automations {
 }
 
 model Integrations {
-  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        INTEGRATIONS @default(INSTAGRAM)
-  userId      String?      @db.Uuid
-  token       String       @unique
-  expiresAt   DateTime?
-  instagramId String       @unique
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  user        User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           INTEGRATIONS @default(INSTAGRAM)
+  userId         String?      @db.Uuid
+  token          String
+  expiresAt      DateTime?
+  instagramId    String       @unique
+  accountName    String?
+  username       String?
+  profilePicture String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Trigger {

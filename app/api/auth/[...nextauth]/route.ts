@@ -1,5 +1,7 @@
 import NextAuth, { type AuthOptions } from "next-auth";
+import type { NextRequest } from "next/server";
 import Instagram from "next-auth/providers/instagram";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { client } from "@/lib/prisma";
 import { encryptString } from "@/lib/crypto";
 import type { JWT } from "next-auth/jwt";
@@ -7,275 +9,455 @@ import type { Session } from "next-auth";
 import type { User, Account, Profile } from "next-auth";
 import { getInstagramMe, exchangeToLongLivedInstagramToken } from "@/lib/instagram";
 import { InstagramService, InstagramWebhookField } from "@/lib/services/instagram-service";
+import bcrypt from "bcryptjs";
 
-/**
- * Subscribe to Instagram webhooks for comments and messages
- * Called during sign-in to enable real-time notifications
- */
 async function subscribeToInstagramWebhooks(instagramId: string, accessToken: string) {
   try {
-    const instagramService = new InstagramService();
-
-    // Subscribe to comment and messaging webhooks
-    const webhookFields: InstagramWebhookField[] = [
-      "comments",        // Comments on media
-      "live_comments",   // Comments during live videos
-      "messages",        // Incoming messages
-      "message_reactions", // Message reactions
-      "messaging_postbacks", // Button postback events
-      "messaging_seen",  // Message read receipts
+    const svc = new InstagramService();
+    const fields: InstagramWebhookField[] = [
+      "comments", "live_comments", "messages",
+      "message_reactions", "messaging_postbacks", "messaging_seen",
     ];
-
-    const result = await instagramService.subscribeToWebhook(
-      instagramId,
-      accessToken,
-      webhookFields
-    );
-
+    const result = await svc.subscribeToWebhook(instagramId, accessToken, fields);
     if (result.ok) {
-      console.log(`[Webhook Subscription] ✅ Successfully subscribed to: ${webhookFields.join(", ")}`);
-      return true;
+      console.log(`[Webhook] ✅ Subscribed: ${fields.join(", ")}`);
     } else {
-      console.warn(`[Webhook Subscription] ⚠️  Failed: ${result.error}`);
-      return false;
+      console.warn(`[Webhook] ⚠️ Failed: ${result.error}`);
     }
-  } catch (error) {
-    console.error("[Webhook Subscription] ❌ Exception:", error);
-    return false;
+  } catch (err) {
+    console.error("[Webhook] ❌ Exception:", err);
   }
 }
 
-export const authOptions: AuthOptions = {
-  providers: [
-    Instagram({
-      clientId: process.env.INSTAGRAM_CLIENT_ID as string,
-      clientSecret: process.env.INSTAGRAM_CLIENT_SECRET as string,
-      authorization: {
-        params: {
-          scope:
-            "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_manage_insights",
+// ---------------------------------------------------------------------------
+// buildAuthOptions – called once per request so connectUserId is in the closure
+// connectUserId comes from req.cookies.get("ig_connect_uid") in the route handler
+// ---------------------------------------------------------------------------
+function buildAuthOptions(connectUserId: string | null): AuthOptions {
+  return {
+    providers: [
+      CredentialsProvider({
+        name: "credentials",
+        credentials: {
+          email: { label: "Email", type: "email" },
+          password: { label: "Password", type: "password" },
         },
-      },
-    }),
-  ],
-  pages: {
-    signIn: "/login",
-  },
-  session: {
-    strategy: "jwt",
-  },
-  callbacks: {
-    async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
-      // Always redirect to dashboard after successful auth
-      if (url.startsWith("/")) return `${baseUrl}${url}`;
-      else if (new URL(url).origin === baseUrl) return url;
-      return `${baseUrl}/dashboard`;
+        async authorize(credentials) {
+          if (!credentials?.email || !credentials?.password) return null;
+          try {
+            const user = await client.user.findUnique({
+              where: { email: credentials.email },
+              select: { id: true, email: true, firstName: true, lastName: true, image: true, password: true },
+            });
+            if (!user?.password) return null;
+            const valid = await bcrypt.compare(credentials.password, user.password);
+            if (!valid) return null;
+            return {
+              id: user.id,
+              email: user.email,
+              name: `${user.firstName} ${user.lastName}`.trim(),
+              image: user.image,
+            };
+          } catch {
+            return null;
+          }
+        },
+      }),
+      Instagram({
+        clientId: process.env.INSTAGRAM_CLIENT_ID as string,
+        clientSecret: process.env.INSTAGRAM_CLIENT_SECRET as string,
+        authorization: {
+          params: {
+            scope:
+              "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_manage_insights",
+          },
+        },
+      }),
+    ],
+
+    pages: { signIn: "/login" },
+
+    session: {
+      strategy: "jwt",
+      maxAge: 30 * 24 * 60 * 60,
+      updateAge: 24 * 60 * 60,
     },
-    async jwt({ token, account }: { token: JWT; account: Account | null }) {
-      if (account) {
-        (token as any).accessToken = (account as any).access_token;
-        (token as any).accessTokenExpires = (account as any).expires_at
-          ? ((account as any).expires_at as number) * 1000
-          : undefined;
-        (token as any).refreshToken = (account as any).refresh_token;
 
-        try {
-          const instagramId = String(account.providerAccountId);
-          const accessToken = (account as any).access_token as string | undefined;
+    callbacks: {
+      async redirect({ url, baseUrl }) {
+        if (url.startsWith("/")) return `${baseUrl}${url}`;
+        if (new URL(url).origin === baseUrl) return url;
+        return `${baseUrl}/dashboard`;
+      },
 
-          // Try by credentialID first
-          let dbUser = await client.user.findFirst({ where: { credentialID: instagramId } });
+      async jwt({ token, account, user }: { token: JWT; account: Account | null; user?: User }) {
+        if (account?.provider === "credentials" && user) {
+          (token as any).userId = user.id;
+          (token as any).sub = user.id;
+          return token;
+        }
 
-          // Fallback: get real Instagram ID from API and look up via integration
-          if (!dbUser && accessToken) {
-            const me = await getInstagramMe(accessToken);
-            const realInstagramId = me?.user_id;
-            if (realInstagramId) {
-              (token as any).instagramId = realInstagramId;
-              const integration = await client.integrations.findFirst({ where: { instagramId: realInstagramId } });
+        if (account) {
+          (token as any).accessToken = (account as any).access_token;
+          (token as any).accessTokenExpires = (account as any).expires_at
+            ? ((account as any).expires_at as number) * 1000
+            : undefined;
+
+          try {
+            const providerAccountId = String(account.providerAccountId);
+            const accessToken = (account as any).access_token as string | undefined;
+
+            // Always set a baseline instagramId so the recovery path can work
+            (token as any).instagramId = providerAccountId;
+
+            // 1. Try by credentialID (Instagram-login users store providerAccountId here)
+            let dbUser = await client.user.findFirst({ where: { credentialID: providerAccountId } });
+
+            if (!dbUser) {
+              // 2. Direct integration lookup by providerAccountId (may already match instagramId)
+              let integration = await client.integrations.findFirst({
+                where: { instagramId: providerAccountId },
+              });
+
+              // 3. Fallback: getInstagramMe to resolve the real business account ID
+              //    (providerAccountId is the app-scoped ID; instagramId stored is user_id)
+              if (!integration && accessToken) {
+                try {
+                  const me = await getInstagramMe(accessToken);
+                  const realInstagramId = me?.user_id;
+                  if (realInstagramId) {
+                    (token as any).instagramId = realInstagramId;
+                    if (realInstagramId !== providerAccountId) {
+                      integration = await client.integrations.findFirst({
+                        where: { instagramId: realInstagramId },
+                      });
+                    }
+                  }
+                } catch {
+                  // Short-lived token may be expired; recovery path will retry via instagramId
+                }
+              }
+
               if (integration?.userId) {
                 dbUser = await client.user.findUnique({ where: { id: integration.userId } });
               }
             }
-          }
 
-          if (dbUser) {
-            (token as any).userId = dbUser.id;
-            (token as any).sub = dbUser.id;
+            if (dbUser) {
+              (token as any).userId = dbUser.id;
+              (token as any).sub = dbUser.id;
+            }
+          } catch (e) {
+            console.error("[JWT] lookup error:", e);
           }
-        } catch (e) {
-          console.error("Error looking up user in jwt callback:", e);
         }
-      }
 
-      // Recovery on subsequent requests: try via instagramId → integration → user
-      if (!(token as any).userId && (token as any).instagramId) {
+        if (!(token as any).userId && (token as any).instagramId) {
+          try {
+            const integration = await client.integrations.findFirst({
+              where: { instagramId: (token as any).instagramId },
+            });
+            if (integration?.userId) (token as any).userId = integration.userId;
+          } catch (e) {
+            console.error("[JWT] recovery error:", e);
+          }
+        }
+
+        return token;
+      },
+
+      async signIn({ user, account, profile }: { user: User; account: Account | null; profile?: Profile }) {
+        if (account?.provider === "credentials") return true;
+
         try {
-          const integration = await client.integrations.findFirst({ where: { instagramId: (token as any).instagramId } });
-          if (integration?.userId) {
-            (token as any).userId = integration.userId;
-          }
-        } catch (e) {
-          console.error("Error recovering userId via integration:", e);
-        }
-      }
+          if (account?.provider === "instagram") {
+            const instagramId = String(account.providerAccountId);
+            const accessToken = (account as any).access_token as string | undefined;
 
-      return token;
-    },
-    async signIn({ user, account, profile }: { user: User; account: Account | null; profile?: Profile }) {
-      try {
-        if (account?.provider === "instagram") {
-          const instagramId = String(account.providerAccountId);
-          const accessToken = (account as any).access_token as string | undefined;
+            if (!accessToken) throw new Error("Missing access token from Instagram");
 
-          // Exchange to long-lived token (60 days) before persisting
-          let finalAccessToken = accessToken ?? "";
-          let expiresAt = new Date(Date.now() + 60 * 24 * 3600 * 1000);
-          if (!finalAccessToken) {
-            throw new Error("Missing access token from provider")
-          }
-          const longLived = await exchangeToLongLivedInstagramToken(
-            finalAccessToken,
-            process.env.INSTAGRAM_CLIENT_SECRET as string
-          );
-          if (!longLived?.access_token) {
-            throw new Error("Failed to exchange to long-lived token")
-          }
-          finalAccessToken = longLived.access_token;
-          expiresAt = new Date(Date.now() + Number(longLived.expires_in) * 1000);
+            // Exchange short-lived → long-lived token (60 days)
+            const longLived = await exchangeToLongLivedInstagramToken(
+              accessToken,
+              process.env.INSTAGRAM_CLIENT_SECRET as string
+            );
+            if (!longLived?.access_token) throw new Error("Failed to exchange long-lived token");
 
-          const me = await getInstagramMe(finalAccessToken)
-          const realInstagramId = me?.user_id
-          const profilePictureUrl = me?.profile_picture_url
+            const finalToken = longLived.access_token;
+            const expiresAt = new Date(Date.now() + Number(longLived.expires_in) * 1000);
 
-          // 1) If integration exists, update token and done
-          const existingIntegration = await client.integrations.findFirst({
-            where: { instagramId: realInstagramId },
-          });
-          if (existingIntegration) {
-            const encrypted = await encryptString(finalAccessToken || existingIntegration.token);
-            await client.integrations.update({
-              where: { id: existingIntegration.id },
-              data: { token: encrypted, expiresAt },
+            const me = await getInstagramMe(finalToken);
+            const realInstagramId = me?.user_id;
+            const profilePictureUrl = me?.profile_picture_url ?? null;
+            const igUsername = me?.username ?? null;
+
+            console.log(`[SignIn] Instagram id=${realInstagramId} connectUserId=${connectUserId}`);
+
+            if (!realInstagramId) {
+              console.error("[SignIn] Instagram API did not return user_id");
+              return `${process.env.NEXTAUTH_URL}/dashboard/settings?connect=error&reason=api-error`;
+            }
+
+            // ── 1. Integration already exists → refresh token ─────────────────
+            const existing = await client.integrations.findFirst({
+              where: { instagramId: realInstagramId },
             });
 
-            // Update user's profile picture if we have it
-            if (profilePictureUrl && existingIntegration.userId) {
-              await client.user.update({
-                where: { id: existingIntegration.userId },
-                data: { image: profilePictureUrl },
+            if (existing) {
+              if (connectUserId && existing.userId !== connectUserId) {
+                // Check whether the current owner is an Instagram-only user (no password).
+                // If so, this account was created by a previous OAuth-only sign-in and can
+                // be transferred to the credentials user who is explicitly claiming it.
+                const existingOwner = existing.userId
+                  ? await client.user.findUnique({
+                      where: { id: existing.userId },
+                      select: { password: true },
+                    })
+                  : null;
+
+                if (existingOwner?.password) {
+                  // Belongs to another full credentials user → block
+                  console.warn("[SignIn] Instagram account belongs to another credentials user");
+                  return `${process.env.NEXTAUTH_URL}/dashboard/settings?connect=error&reason=already-linked`;
+                }
+
+                // Transfer from Instagram-only user to this credentials user
+                console.log(`[SignIn] Transferring integration ${existing.id} → user ${connectUserId}`);
+                await client.integrations.update({
+                  where: { id: existing.id },
+                  data: {
+                    userId: connectUserId,
+                    token: await encryptString(finalToken),
+                    expiresAt,
+                    username: igUsername,
+                    profilePicture: profilePictureUrl,
+                    accountName: user?.name || igUsername || null,
+                  },
+                });
+
+                const dbUser = await client.user.findUnique({
+                  where: { id: connectUserId },
+                  select: { activeIntegrationId: true },
+                });
+                if (!dbUser?.activeIntegrationId) {
+                  await client.user.update({
+                    where: { id: connectUserId },
+                    data: { activeIntegrationId: existing.id },
+                  });
+                }
+
+                if (profilePictureUrl) {
+                  await client.user.update({
+                    where: { id: connectUserId },
+                    data: { image: profilePictureUrl },
+                  });
+                }
+
+                subscribeToInstagramWebhooks(realInstagramId, finalToken).catch(() => {});
+                return `${process.env.NEXTAUTH_URL}/dashboard/settings?connect=success`;
+              }
+
+              // Same user — just refresh the token
+              await client.integrations.update({
+                where: { id: existing.id },
+                data: {
+                  token: await encryptString(finalToken),
+                  expiresAt,
+                  username: igUsername,
+                  profilePicture: profilePictureUrl,
+                  accountName: user?.name || igUsername || null,
+                },
               });
+
+              if (profilePictureUrl && existing.userId) {
+                await client.user.update({
+                  where: { id: existing.userId },
+                  data: { image: profilePictureUrl },
+                });
+              }
+
+              subscribeToInstagramWebhooks(realInstagramId, finalToken).catch(() => {});
+              // In add-account mode: redirect to preserve the credentials session
+              if (connectUserId) {
+                return `${process.env.NEXTAUTH_URL}/dashboard/settings?connect=success`;
+              }
+              return true;
             }
 
-            // Re-subscribe to webhooks on token refresh (non-blocking)
-            if (realInstagramId) {
-              subscribeToInstagramWebhooks(realInstagramId, finalAccessToken).catch((err) => {
-                console.error("[Webhook Subscription] Re-subscription failed:", err);
+            // ── 2. Add-account mode: attach new Instagram to the existing user ─
+            if (connectUserId) {
+              console.log(`[SignIn] Add-account mode → linking to user ${connectUserId}`);
+              const newIntegration = await client.integrations.create({
+                data: {
+                  userId: connectUserId,
+                  token: await encryptString(finalToken),
+                  expiresAt,
+                  instagramId: realInstagramId || "",
+                  username: igUsername,
+                  profilePicture: profilePictureUrl,
+                  accountName: user?.name || igUsername || null,
+                },
               });
+
+              const dbUser = await client.user.findUnique({
+                where: { id: connectUserId },
+                select: { activeIntegrationId: true },
+              });
+              if (!dbUser?.activeIntegrationId) {
+                await client.user.update({
+                  where: { id: connectUserId },
+                  data: { activeIntegrationId: newIntegration.id },
+                });
+              }
+
+              if (realInstagramId) {
+                subscribeToInstagramWebhooks(realInstagramId, finalToken).catch(() => {});
+              }
+              // Return redirect to preserve existing session (same reasoning as above)
+              return `${process.env.NEXTAUTH_URL}/dashboard/settings?connect=success`;
             }
 
-            return true;
-          }
+            // ── 3. Normal login: find or create user ──────────────────────────
+            const igEmail = user?.email ?? null;
+            const existingUser =
+              (await client.user.findFirst({ where: { credentialID: instagramId } })) ||
+              (igEmail ? await client.user.findUnique({ where: { email: igEmail } }) : null);
 
-          // 2) Ensure a user exists; try by credentialID first
-          const existingUser = await client.user.findFirst({
-            where: { credentialID: instagramId },
-          });
+            let dbUserId: string;
+            if (existingUser) {
+              dbUserId = existingUser.id;
+              if (!existingUser.credentialID) {
+                await client.user.update({
+                  where: { id: dbUserId },
+                  data: { credentialID: instagramId },
+                });
+              }
+            } else {
+              const fullName = user?.name ?? "";
+              const [firstName, ...rest] = fullName.split(" ");
+              const created = await client.user.create({
+                data: {
+                  credentialID: instagramId,
+                  email: igEmail ?? `${instagramId}@instagram.local`,
+                  firstName: firstName || "Instagram",
+                  lastName: rest.join(" ") || "User",
+                  image: profilePictureUrl || user?.image || "",
+                  subscription: { create: {} },
+                },
+              });
+              dbUserId = created.id;
+            }
 
-          let dbUserId: string;
-          if (existingUser) {
-            dbUserId = existingUser.id;
-          } else {
-            const fullName = user?.name ?? "";
-            const [firstName, ...rest] = fullName.split(" ");
-            const lastName = rest.join(" ") || "";
-            // Use Instagram profile picture URL if available, otherwise fall back to user.image
-            const image = profilePictureUrl || user?.image || "";
-            // Instagram often doesn't provide email; generate a placeholder unique email
-            const email = user?.email ?? `${instagramId}@instagram.local`;
-
-            const created = await client.user.create({
+            const newIntegration = await client.integrations.create({
               data: {
-                credentialID: instagramId,
-                email,
-                firstName: firstName || "Instagram",
-                lastName: lastName || "User",
-                image,
-                subscription: { create: {} },
+                userId: dbUserId,
+                token: await encryptString(finalToken),
+                expiresAt,
+                instagramId: realInstagramId || "",
+                username: igUsername,
+                profilePicture: profilePictureUrl,
+                accountName: user?.name || igUsername || null,
               },
             });
-            dbUserId = created.id;
-          }
 
-          // 3) Create integration
-          const encrypted = await encryptString(finalAccessToken);
-          await client.integrations.create({
-            data: {
-              userId: dbUserId,
-              token: encrypted,
-              expiresAt,
-              instagramId: realInstagramId || "",
-            },
-          });
-
-          // 4) Subscribe to webhooks for comments and messages (non-blocking)
-          if (realInstagramId) {
-            subscribeToInstagramWebhooks(realInstagramId, finalAccessToken).catch((err) => {
-              console.error("[Webhook Subscription] Initial subscription failed:", err);
-              // Don't fail sign-in if webhook subscription fails
+            const dbUser = await client.user.findUnique({
+              where: { id: dbUserId },
+              select: { activeIntegrationId: true },
             });
+            if (!dbUser?.activeIntegrationId) {
+              await client.user.update({
+                where: { id: dbUserId },
+                data: { activeIntegrationId: newIntegration.id },
+              });
+            }
+
+            if (realInstagramId) {
+              subscribeToInstagramWebhooks(realInstagramId, finalToken).catch(() => {});
+            }
           }
+          return true;
+        } catch (error) {
+          console.error("[SignIn] error:", error);
+          return false;
         }
-        return true;
-      } catch (error) {
-        console.error("signIn callback error", error);
-        return false;
-      }
-    },
-    async session({ session, token }: { session: Session; token: JWT }) {
-      if (session.user) {
-        try {
-          let userId = (token as any).userId as string | undefined;
-          console.log("[Session] token.userId:", userId, "token.sub:", token.sub);
+      },
 
-          // Recovery: try token.sub as credentialID
-          if (!userId && token.sub) {
-            const found = await client.user.findFirst({ where: { credentialID: token.sub } });
-            console.log("[Session] recovery lookup by sub:", token.sub, "found:", found?.id);
-            if (found) userId = found.id;
-          }
+      async session({ session, token }: { session: Session; token: JWT }) {
+        if (session.user) {
+          try {
+            let userId = (token as any).userId as string | undefined;
+            console.log("[Session] token.userId:", userId, "token.sub:", token.sub);
 
-          // Recovery: try via integration using stored instagramId
-          if (!userId && (token as any).instagramId) {
-            const integration = await client.integrations.findFirst({ where: { instagramId: (token as any).instagramId } });
-            console.log("[Session] recovery via instagramId:", (token as any).instagramId, "userId:", integration?.userId);
-            if (integration?.userId) userId = integration.userId;
-          }
+            if (!userId && token.sub) {
+              const found = await client.user.findFirst({ where: { credentialID: token.sub } });
+              if (found) userId = found.id;
+            }
 
-          if (userId) {
-            (session.user as any).id = userId;
-            try {
+            if (!userId && (token as any).instagramId) {
+              const integration = await client.integrations.findFirst({
+                where: { instagramId: (token as any).instagramId },
+              });
+              if (integration?.userId) userId = integration.userId;
+            }
+
+            if (userId) {
+              (session.user as any).id = userId;
               const dbUser = await client.user.findUnique({
                 where: { id: userId },
-                select: { additionalEmail: true, phone: true, image: true },
+                select: { additionalEmail: true, image: true, activeIntegrationId: true },
               });
               if (dbUser) {
                 (session.user as any).additionalEmail = dbUser.additionalEmail;
+                (session.user as any).activeIntegrationId = dbUser.activeIntegrationId;
                 if (dbUser.image) session.user.image = dbUser.image;
               }
-            } catch {
-              // non-critical, id is already set
             }
+          } catch (err) {
+            console.error("[Session] error:", err);
           }
-        } catch (error) {
-          console.error("Error in session callback:", error);
+        }
+        return session;
+      },
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// authOptions – used by getServerSession() in server actions / API routes.
+// connectUserId is null here because there is no request context.
+// ---------------------------------------------------------------------------
+export const authOptions = buildAuthOptions(null);
+
+// ---------------------------------------------------------------------------
+// Route handlers – reads the ig_connect_uid cookie from the real request
+// and passes it into the auth options closure before NextAuth runs.
+// ---------------------------------------------------------------------------
+export async function GET(req: NextRequest, ctx: any) {
+  let connectUserId = req.cookies.get("ig_connect_uid")?.value ?? null;
+
+  // Fallback: cookie can be lost through the OAuth redirect chain.
+  // If this is the Instagram callback and the cookie is missing, use the
+  // existing credentials session as the connect target.
+  if (!connectUserId) {
+    try {
+      const { pathname } = new URL(req.url);
+      if (pathname === "/api/auth/callback/instagram") {
+        const existing = await getServerSession(buildAuthOptions(null));
+        const uid = (existing?.user as any)?.id as string | undefined;
+        if (uid) {
+          connectUserId = uid;
+          console.log("[NextAuth GET] Fallback connectUserId from session:", uid);
         }
       }
-      return session;
-    },
-  },
-};
+    } catch {}
+  }
 
-const handler = NextAuth(authOptions);
+  if (connectUserId) console.log("[NextAuth GET] connect mode, userId:", connectUserId);
+  return NextAuth(buildAuthOptions(connectUserId))(req, ctx);
+}
 
-export { handler as GET, handler as POST };
+export async function POST(req: NextRequest, ctx: any) {
+  const connectUserId = req.cookies.get("ig_connect_uid")?.value ?? null;
+  if (connectUserId) console.log("[NextAuth POST] connect mode, userId:", connectUserId);
+  return NextAuth(buildAuthOptions(connectUserId))(req, ctx);
+}
